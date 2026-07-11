@@ -52,6 +52,8 @@ function isBlockedIPv4(address) {
         return true; // 192.168.0.0/16 private
     if (a === 192 && b === 0 && c === 0)
         return true; // 192.0.0.0/24 IETF protocol assignments
+    if (a === 192 && b === 0 && c === 2)
+        return true; // 192.0.2.0/24 TEST-NET-1
     if (a === 198 && (b === 18 || b === 19))
         return true; // 198.18.0.0/15 benchmarking
     if (a === 198 && b === 51 && c === 100)
@@ -123,6 +125,8 @@ function isBlockedIPv6(address) {
         return true; // fc00::/7 unique-local
     if (bytes[0] === 0xfe && (bytes[1] & 0xc0) === 0x80)
         return true; // fe80::/10 link-local
+    if (bytes[0] === 0xfe && (bytes[1] & 0xc0) === 0xc0)
+        return true; // fec0::/10 site-local (deprecated by RFC 3879, still routable on legacy networks)
     if (bytes[0] === 0xff)
         return true; // ff00::/8 multicast
     if (bytes[0] === 0x20 && bytes[1] === 0x01 && bytes[2] === 0x0d && bytes[3] === 0xb8)
