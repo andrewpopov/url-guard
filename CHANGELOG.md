@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.1.1
+
+**Security fix.** v0.1.0 shipped two gaps in its blocked-range set, so it was not
+in fact the superset of the four hand-rolled copies that 0.1.0 claimed to be.
+Both were found independently, in two different repos, while diffing the package
+against the local guard it was meant to replace — savoro's and smarthome's.
+
+- Block **192.0.2.0/24 (TEST-NET-1)**. 0.1.0 blocked TEST-NET-2 and TEST-NET-3
+  but not TEST-NET-1 — an oversight, not a scope decision. savoro's local guard
+  covered it (incidentally, via a coarse `192.0.0.0/16` rule).
+- Block **fec0::/10 (IPv6 site-local)**. Deprecated by RFC 3879 but still
+  routable on legacy networks; smarthome's local guard blocked it explicitly.
+  `fe80::/10` link-local was covered; `fec0::/10` is bitwise distinct.
+
+**Adopters on 0.1.0 should upgrade.** cairn and bewks did not regress on
+adoption — neither of their originals covered these ranges — but they gain the
+coverage here. smarthome carried a local supplemental check to close the gap; it
+can now be deleted.
+
 ## 0.1.0
 
 Initial release. SSRF guard extracted as a superset of four hand-rolled copies

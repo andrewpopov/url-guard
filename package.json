@@ -1,14 +1,23 @@
 {
   "name": "@andrewpopov/url-guard",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "SSRF guard for server-side fetches of user-supplied URLs: blocks non-http(s)/credentialed/disallowed-port URLs, localhost + internal-suffix hosts, and IP literals or DNS resolutions in private/reserved ranges (IPv4 + rigorous IPv6).",
   "author": "Andrew Popov",
   "license": "MIT",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
-  "files": ["dist"],
-  "engines": { "node": ">=20" },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",

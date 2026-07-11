@@ -28,6 +28,8 @@ describe('isBlockedIPv4 — every range', () => {
     ['172.31.255.255', true],
     ['192.168.1.1', true],
     ['192.0.0.1', true], // IETF protocol
+    ['192.0.2.1', true], // TEST-NET-1 (savoro) — regression: shipped unblocked in v0.1.0
+    ['192.0.2.255', true],
     ['198.18.0.1', true], // benchmarking
     ['198.51.100.4', true], // TEST-NET-2 (savoro)
     ['203.0.113.4', true], // TEST-NET-3 (savoro)
@@ -56,6 +58,8 @@ describe('isBlockedIPv6 — incl. forms string-matchers miss', () => {
     ['fc00::1', true], // unique-local
     ['fd12:3456::1', true],
     ['fe80::1', true], // link-local
+    ['fec0::1', true], // site-local, deprecated by RFC 3879 (smarthome) — regression: shipped unblocked in v0.1.0
+    ['feff:ffff::1', true], // top of fec0::/10
     ['ff02::1', true], // multicast
     ['2001:db8::1', true], // documentation
     ['::ffff:127.0.0.1', true], // IPv4-mapped, dotted
