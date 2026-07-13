@@ -4,6 +4,9 @@
   "description": "SSRF guard for server-side fetches of user-supplied URLs: blocks non-http(s)/credentialed/disallowed-port URLs, localhost + internal-suffix hosts, and IP literals or DNS resolutions in private/reserved ranges (IPv4 + rigorous IPv6).",
   "author": "Andrew Popov",
   "license": "MIT",
+  "repository": { "type": "git", "url": "https://github.com/andrewpopov/url-guard.git" },
+  "bugs": { "url": "https://github.com/andrewpopov/url-guard/issues" },
+  "homepage": "https://github.com/andrewpopov/url-guard#readme",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {

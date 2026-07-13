@@ -2,6 +2,7 @@
 
 ## 0.1.3
 
+- Add public contribution, support, and private vulnerability-reporting policies.
 - **Security — block private IPv4 destinations encoded through NAT64, 6to4, and
   Teredo IPv6 transition formats.** These forms can otherwise bypass an IPv4
   literal policy while ultimately reaching the same private address.
