@@ -9,6 +9,7 @@
   It cannot pin a later connection or follow redirects safely by itself; callers
   handling untrusted URLs need a pinned transport and per-hop redirect policy.
 - **Developer experience — add `npm run verify`** for the local release gate.
+- **Developer security — upgrade Vitest** to a version with no known advisories.
 
 ## 0.1.2
 
