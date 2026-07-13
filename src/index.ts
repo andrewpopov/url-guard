@@ -8,12 +8,10 @@ import { isIPv4, isIPv6, isIP } from 'net';
  * that are `localhost`/internal-suffix names or IP literals in private/reserved
  * ranges, and hostnames that DNS-resolve to one.
  *
- * Residual, knowingly accepted (DNS rebinding / TOCTOU): the hostname is resolved
- * here but the caller's fetch resolves it again, so a rebinding attacker can flip
- * a name public→private between check and fetch. Shrink the window by (1) checking
- * at write time, (2) re-checking at fetch time, (3) `redirect: 'manual'` on the
- * fetch. Fully closing it needs IP pinning (connect to the vetted IP), which is
- * more than these apps warrant.
+ * This is a preflight guard, not a complete SSRF transport boundary. The hostname
+ * is resolved here but a caller's fetch resolves it again, so a rebinding attacker
+ * can flip a name public→private between check and connection. Use a transport
+ * that pins the vetted address and revalidates every redirect for untrusted URLs.
  */
 
 export type UrlRejectionReason =
@@ -65,6 +63,7 @@ export function isBlockedIPv4(address: string): boolean {
   if (a === 192 && b === 168) return true; // 192.168.0.0/16 private
   if (a === 192 && b === 0 && c === 0) return true; // 192.0.0.0/24 IETF protocol assignments
   if (a === 192 && b === 0 && c === 2) return true; // 192.0.2.0/24 TEST-NET-1
+  if (a === 192 && b === 88 && c === 99) return true; // deprecated 6to4 relay anycast
   if (a === 198 && (b === 18 || b === 19)) return true; // 198.18.0.0/15 benchmarking
   if (a === 198 && b === 51 && c === 100) return true; // 198.51.100.0/24 TEST-NET-2
   if (a === 203 && b === 0 && c === 113) return true; // 203.0.113.0/24 TEST-NET-3
@@ -137,6 +136,30 @@ export function isBlockedIPv6(address: string): boolean {
   // IPv4-compatible (::/96, deprecated) — embedded IPv4 in the low 32 bits.
   if (allZeroThrough(12)) {
     return isBlockedIPv4(bytes.slice(12).join('.'));
+  }
+
+  // IPv4-translated / NAT64: these prefixes encode an IPv4 destination in the
+  // low 32 bits. Treat an embedded private or special IPv4 address exactly as
+  // its literal form, rather than allowing it through as a public-looking IPv6.
+  const hasWellKnownNat64Prefix =
+    bytes[0] === 0x00 && bytes[1] === 0x64 && bytes[2] === 0xff && bytes[3] === 0x9b && bytes.slice(4, 12).every((byte) => byte === 0);
+  const hasLocalUseNat64Prefix =
+    bytes[0] === 0x00 && bytes[1] === 0x64 && bytes[2] === 0xff && bytes[3] === 0x9b && bytes[4] === 0x00 && bytes[5] === 0x01;
+  if ((hasWellKnownNat64Prefix || hasLocalUseNat64Prefix) && isBlockedIPv4(bytes.slice(12).join('.'))) {
+    return true;
+  }
+
+  // 6to4 embeds an IPv4 relay address immediately after the 2002::/16 prefix.
+  if (bytes[0] === 0x20 && bytes[1] === 0x02 && isBlockedIPv4(bytes.slice(2, 6).join('.'))) {
+    return true;
+  }
+
+  // Teredo obfuscates the client IPv4 address by bitwise-inverting the final
+  // four bytes. It can therefore tunnel a private destination through a form
+  // that does not resemble an IPv4-mapped address.
+  if (bytes[0] === 0x20 && bytes[1] === 0x01 && bytes[2] === 0x00 && bytes[3] === 0x00) {
+    const clientAddress = bytes.slice(12).map((byte) => byte ^ 0xff).join('.');
+    if (isBlockedIPv4(clientAddress)) return true;
   }
   return false;
 }
