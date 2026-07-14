@@ -192,10 +192,59 @@ export interface AssertSafeUrlOptions {
   requireHttps?: boolean;
   /** DNS resolver, injectable for tests. Defaults to `dns.lookup(host, { all, verbatim })`. */
   lookup?: (hostname: string) => Promise<Array<{ address: string }>>;
+  /**
+   * Upper bound, in milliseconds, on how long the DNS lookup (default or
+   * caller-injected `lookup`) may take before the URL is rejected with reason
+   * `unresolvable`. Applies uniformly so a hostile or slow resolver cannot hang
+   * the caller indefinitely. Default `5000`. Pass `0` or `Infinity` to disable
+   * the bound entirely (e.g. a caller that already enforces its own timeout).
+   */
+  lookupTimeoutMs?: number;
 }
 
 async function defaultLookup(hostname: string): Promise<Array<{ address: string }>> {
   return dns.lookup(hostname, { all: true, verbatim: true });
+}
+
+/**
+ * Race `lookup(hostname)` against a timer so a hostile or slow resolver
+ * cannot hang the caller indefinitely. `timeoutMs` of `0` or `Infinity`
+ * disables the bound. The timer is always cleared once the lookup settles,
+ * so a successful (or failed) lookup never leaves a dangling timer keeping
+ * the event loop alive.
+ */
+function withLookupTimeout(
+  lookup: (hostname: string) => Promise<Array<{ address: string }>>,
+  hostname: string,
+  timeoutMs: number,
+): Promise<Array<{ address: string }>> {
+  if (!timeoutMs || timeoutMs === Infinity) {
+    return lookup(hostname);
+  }
+
+  return new Promise<Array<{ address: string }>>((resolve, reject) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      reject(new Error('DNS lookup timed out'));
+    }, timeoutMs);
+
+    lookup(hostname).then(
+      (result) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(result);
+      },
+      (err) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
 }
 
 /**
@@ -246,9 +295,10 @@ export async function assertSafeUrl(rawUrl: string, options: AssertSafeUrlOption
   }
 
   const lookup = options.lookup ?? defaultLookup;
+  const lookupTimeoutMs = options.lookupTimeoutMs ?? 5000;
   let addresses: Array<{ address: string }>;
   try {
-    addresses = await lookup(hostname);
+    addresses = await withLookupTimeout(lookup, hostname, lookupTimeoutMs);
   } catch {
     throw new UrlNotAllowedError('unresolvable', `${label} host could not be resolved`);
   }

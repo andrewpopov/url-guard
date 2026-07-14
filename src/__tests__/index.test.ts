@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   assertSafeUrl,
   isBlockedIp,
@@ -199,4 +199,65 @@ describe('assertSafeUrl', () => {
   it('uses the label in error messages', async () => {
     await expect(assertSafeUrl('ftp://example.com', { ...opts, label: 'Webhook URL' })).rejects.toThrow(/Webhook URL/);
   });
+});
+
+describe('assertSafeUrl — lookupTimeoutMs', () => {
+  const neverSettles = () => new Promise<Array<{ address: string }>>(() => {});
+
+  it('times out a hung lookup and maps it to reason "unresolvable", promptly', async () => {
+    const start = Date.now();
+    await expect(
+      assertSafeUrl('https://hangs.example.com', { lookup: neverSettles, lookupTimeoutMs: 20 }),
+    ).rejects.toMatchObject({ reason: 'unresolvable' });
+    // Generous upper bound so this stays reliable under CI load, but tight
+    // enough to prove the 20ms bound actually fired rather than some other
+    // (much larger) fallback.
+    expect(Date.now() - start).toBeLessThan(2000);
+  });
+
+  it('does not affect a lookup that settles well within the timeout', async () => {
+    const url = await assertSafeUrl('https://fast.example.com', {
+      lookup: resolvesTo('8.8.8.8'),
+      lookupTimeoutMs: 20,
+    });
+    expect(url).toBeInstanceOf(URL);
+  });
+
+  it('lookupTimeoutMs: 0 disables the bound entirely', async () => {
+    // A lookup that resolves after the "disabled" window would still time out
+    // if the 0 sentinel were mishandled as "immediate timeout" instead of
+    // "no timeout".
+    const slowButFinite = () =>
+      new Promise<Array<{ address: string }>>((resolve) => setTimeout(() => resolve([{ address: '8.8.8.8' }]), 30));
+    await expect(
+      assertSafeUrl('https://slow.example.com', { lookup: slowButFinite, lookupTimeoutMs: 0 }),
+    ).resolves.toBeInstanceOf(URL);
+  });
+
+  it('leaves no dangling timer once a fast lookup settles (finally-clears the timer)', async () => {
+    const setTimeoutSpy = vi.spyOn(global, 'setTimeout');
+    const clearTimeoutSpy = vi.spyOn(global, 'clearTimeout');
+
+    await assertSafeUrl('https://fast.example.com', { lookup: resolvesTo('8.8.8.8'), lookupTimeoutMs: 5000 });
+
+    expect(setTimeoutSpy).toHaveBeenCalledTimes(1);
+    expect(clearTimeoutSpy).toHaveBeenCalledTimes(1);
+    // The exact timer id returned by our setTimeout call must be the one cleared.
+    expect(clearTimeoutSpy.mock.calls[0][0]).toBe(setTimeoutSpy.mock.results[0].value);
+
+    setTimeoutSpy.mockRestore();
+    clearTimeoutSpy.mockRestore();
+  });
+});
+
+describe('assertSafeUrl — defaultLookup (real dns.lookup, no injected lookup)', () => {
+  // '.invalid' is reserved by RFC 2606 and is guaranteed to never resolve, so
+  // this exercises the real dns.lookup() path deterministically and offline
+  // (an ENOTFOUND-style resolver error, not a network round-trip to a real
+  // authoritative server).
+  it('rejects a hostname under the reserved .invalid TLD with reason "unresolvable"', async () => {
+    await expect(assertSafeUrl('https://this-host-does-not-exist.invalid/x')).rejects.toMatchObject({
+      reason: 'unresolvable',
+    });
+  }, 10000);
 });
