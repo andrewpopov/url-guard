@@ -18,7 +18,7 @@ Zero runtime dependencies — Node `dns` + `net` (Node ≥ 20).
 ## Install
 
 ```
-npm install github:andrewpopov/url-guard#v0.1.0
+npm install github:andrewpopov/url-guard#v0.1.2
 ```
 
 ## Use
@@ -28,7 +28,7 @@ import { assertSafeUrl, UrlNotAllowedError } from '@andrewpopov/url-guard';
 
 try {
   const url = await assertSafeUrl(userUrl, { label: 'Webhook URL' });
-  // url is a validated URL safe to fetch
+  // This is a validated preflight result, not a pinned connection.
 } catch (err) {
   if (err instanceof UrlNotAllowedError) {
     // err.reason: 'protocol' | 'credentials' | 'blocked_host' | 'blocked_address' | ...
@@ -62,14 +62,32 @@ await deliverWebhooks(targets, body, {
 `isBlockedIPv4`, `isBlockedIPv6`, `ipv6ToBytes`, `isBlockedHostname`,
 `BLOCKED_HOSTNAMES`, `BLOCKED_HOSTNAME_SUFFIXES`.
 
-## Residual risk (DNS rebinding / TOCTOU)
+## Security boundary: preflight only
 
-The hostname is resolved here, but the caller's `fetch` resolves it again — a
-rebinding attacker can flip a name public→private between check and fetch. Shrink
-the window: check at write time, re-check at fetch time, and use
-`redirect: 'manual'`. Fully closing it needs IP pinning (connect to the vetted
-IP), which these apps don't warrant. See the note in `src/index.ts`.
+`assertSafeUrl` validates a URL and its DNS answers **at the moment it runs**.
+It does not make a later ordinary `fetch(url)` safe: that fetch resolves the
+hostname again, so DNS rebinding can change the destination after validation.
+
+For an untrusted URL, use a transport that connects to a vetted IP while
+retaining the original Host/SNI identity, and either rejects redirects or
+validates and pins every redirect hop. Rechecking before use and setting
+`redirect: 'manual'` reduces exposure, but does not turn this preflight helper
+into a complete SSRF boundary. Do not use it as the sole control for metadata,
+loopback, or internal-network access.
+
+## Verify locally
+
+```bash
+npm ci
+npm run verify
+npm audit --omit=dev --audit-level=high
+```
 
 ## Standards
 
 See [`STANDARDS.md`](./STANDARDS.md) (synced from `agent_brain/knowledge/shared-package-standards.md`).
+
+## Project policies
+
+See [Contributing](./CONTRIBUTING.md), [Support](./SUPPORT.md), and the
+[Security Policy](./SECURITY.md). This package is licensed under [MIT](./LICENSE).

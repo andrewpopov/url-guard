@@ -30,6 +30,7 @@ describe('isBlockedIPv4 — every range', () => {
     ['192.0.0.1', true], // IETF protocol
     ['192.0.2.1', true], // TEST-NET-1 (savoro) — regression: shipped unblocked in v0.1.0
     ['192.0.2.255', true],
+    ['192.88.99.1', true], // deprecated 6to4 relay anycast
     ['198.18.0.1', true], // benchmarking
     ['198.51.100.4', true], // TEST-NET-2 (savoro)
     ['203.0.113.4', true], // TEST-NET-3 (savoro)
@@ -66,6 +67,12 @@ describe('isBlockedIPv6 — incl. forms string-matchers miss', () => {
     ['::ffff:7f00:1', true], // IPv4-mapped, HEX form — string-matchers miss this
     ['::ffff:a9fe:a9fe', true], // 169.254.169.254 as hex-mapped
     ['::7f00:1', true], // IPv4-compatible (deprecated)
+    ['64:ff9b::a00:1', true], // well-known NAT64 carrying 10.0.0.1
+    ['64:ff9b::808:808', false], // well-known NAT64 carrying public 8.8.8.8
+    ['64:ff9b:1::a00:1', true], // local-use NAT64 carrying 10.0.0.1
+    ['2002:a00:1::', true], // 6to4 carrying 10.0.0.1
+    ['2002:808:808::', false], // 6to4 carrying public 8.8.8.8
+    ['2001:0:0:0:0:0:f5ff:fffe', true], // Teredo-obfuscated 10.0.0.1
     ['2606:4700:4700::1111', false], // public (Cloudflare DNS)
     ['2001:4860:4860::8888', false], // public (Google DNS)
   ])('%s -> blocked=%s', (ip, blocked) => {

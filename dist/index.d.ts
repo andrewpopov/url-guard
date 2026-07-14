@@ -5,12 +5,10 @@
  * that are `localhost`/internal-suffix names or IP literals in private/reserved
  * ranges, and hostnames that DNS-resolve to one.
  *
- * Residual, knowingly accepted (DNS rebinding / TOCTOU): the hostname is resolved
- * here but the caller's fetch resolves it again, so a rebinding attacker can flip
- * a name public→private between check and fetch. Shrink the window by (1) checking
- * at write time, (2) re-checking at fetch time, (3) `redirect: 'manual'` on the
- * fetch. Fully closing it needs IP pinning (connect to the vetted IP), which is
- * more than these apps warrant.
+ * This is a preflight guard, not a complete SSRF transport boundary. The hostname
+ * is resolved here but a caller's fetch resolves it again, so a rebinding attacker
+ * can flip a name public→private between check and connection. Use a transport
+ * that pins the vetted address and revalidates every redirect for untrusted URLs.
  */
 export type UrlRejectionReason = 'invalid_url' | 'protocol' | 'https_required' | 'credentials' | 'port' | 'blocked_host' | 'unresolvable' | 'blocked_address';
 /** Thrown when a URL is not safe to fetch. `reason` lets callers map to their own error. */

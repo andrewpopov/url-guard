@@ -54,6 +54,8 @@ function isBlockedIPv4(address) {
         return true; // 192.0.0.0/24 IETF protocol assignments
     if (a === 192 && b === 0 && c === 2)
         return true; // 192.0.2.0/24 TEST-NET-1
+    if (a === 192 && b === 88 && c === 99)
+        return true; // deprecated 6to4 relay anycast
     if (a === 198 && (b === 18 || b === 19))
         return true; // 198.18.0.0/15 benchmarking
     if (a === 198 && b === 51 && c === 100)
@@ -138,6 +140,26 @@ function isBlockedIPv6(address) {
     // IPv4-compatible (::/96, deprecated) — embedded IPv4 in the low 32 bits.
     if (allZeroThrough(12)) {
         return isBlockedIPv4(bytes.slice(12).join('.'));
+    }
+    // IPv4-translated / NAT64: these prefixes encode an IPv4 destination in the
+    // low 32 bits. Treat an embedded private or special IPv4 address exactly as
+    // its literal form, rather than allowing it through as a public-looking IPv6.
+    const hasWellKnownNat64Prefix = bytes[0] === 0x00 && bytes[1] === 0x64 && bytes[2] === 0xff && bytes[3] === 0x9b && bytes.slice(4, 12).every((byte) => byte === 0);
+    const hasLocalUseNat64Prefix = bytes[0] === 0x00 && bytes[1] === 0x64 && bytes[2] === 0xff && bytes[3] === 0x9b && bytes[4] === 0x00 && bytes[5] === 0x01;
+    if ((hasWellKnownNat64Prefix || hasLocalUseNat64Prefix) && isBlockedIPv4(bytes.slice(12).join('.'))) {
+        return true;
+    }
+    // 6to4 embeds an IPv4 relay address immediately after the 2002::/16 prefix.
+    if (bytes[0] === 0x20 && bytes[1] === 0x02 && isBlockedIPv4(bytes.slice(2, 6).join('.'))) {
+        return true;
+    }
+    // Teredo obfuscates the client IPv4 address by bitwise-inverting the final
+    // four bytes. It can therefore tunnel a private destination through a form
+    // that does not resemble an IPv4-mapped address.
+    if (bytes[0] === 0x20 && bytes[1] === 0x01 && bytes[2] === 0x00 && bytes[3] === 0x00) {
+        const clientAddress = bytes.slice(12).map((byte) => byte ^ 0xff).join('.');
+        if (isBlockedIPv4(clientAddress))
+            return true;
     }
     return false;
 }

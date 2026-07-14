@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.3
+
+- Add public contribution, support, and private vulnerability-reporting policies.
+- **Security — block private IPv4 destinations encoded through NAT64, 6to4, and
+  Teredo IPv6 transition formats.** These forms can otherwise bypass an IPv4
+  literal policy while ultimately reaching the same private address.
+- **Security documentation — clarify that `assertSafeUrl` is preflight only.**
+  It cannot pin a later connection or follow redirects safely by itself; callers
+  handling untrusted URLs need a pinned transport and per-hop redirect policy.
+- **Developer experience — add `npm run verify`** for the local release gate.
+- **Developer security — upgrade Vitest** to a version with no known advisories.
+
 ## 0.1.2
 
 Fix — expose `./package.json` in the `exports` map. Without it,
