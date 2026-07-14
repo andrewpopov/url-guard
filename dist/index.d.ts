@@ -49,6 +49,14 @@ export interface AssertSafeUrlOptions {
     lookup?: (hostname: string) => Promise<Array<{
         address: string;
     }>>;
+    /**
+     * Upper bound, in milliseconds, on how long the DNS lookup (default or
+     * caller-injected `lookup`) may take before the URL is rejected with reason
+     * `unresolvable`. Applies uniformly so a hostile or slow resolver cannot hang
+     * the caller indefinitely. Default `5000`. Pass `0` or `Infinity` to disable
+     * the bound entirely (e.g. a caller that already enforces its own timeout).
+     */
+    lookupTimeoutMs?: number;
 }
 /**
  * Assert `rawUrl` is safe to fetch server-side, returning the parsed `URL`.
