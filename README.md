@@ -18,7 +18,7 @@ Zero runtime dependencies — Node `dns` + `net` (Node ≥ 20).
 ## Install
 
 ```
-npm install github:andrewpopov/url-guard#v0.1.2
+npm install github:andrewpopov/url-guard#v0.1.4
 ```
 
 ## Use
