@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.4
+
+- **Security — bound the DNS lookup.** `assertSafeUrl` now applies
+  `lookupTimeoutMs` (default 5s) to hostname resolution; a hostile or hung
+  resolver could previously stall the caller indefinitely. (#6)
+
 ## 0.1.3
 
 - Add public contribution, support, and private vulnerability-reporting policies.
