@@ -27,7 +27,20 @@ export declare function isBlockedIPv4(address: string): boolean;
  * dotted-quad (e.g. `::ffff:127.0.0.1`). Returns null if it can't be parsed.
  */
 export declare function ipv6ToBytes(address: string): number[] | null;
-/** True for an IPv6 literal in a loopback, unique-local, link-local, multicast, or mapped-private range. */
+/**
+ * True for an IPv6 literal that is not demonstrably global unicast.
+ *
+ * Global unicast — the only IPv6 space that is generally globally reachable —
+ * is `2000::/3`. Rather than enumerate every non-routable range by hand (the
+ * shape that let ranges like `100::/64` discard-only, `3fff::/20`
+ * documentation, `5f00::/16` SRv6, and the unallocated majority of the address
+ * space through unblocked), this default-denies everything outside
+ * `2000::/3` and then carves out the specific non-globally-reachable ranges
+ * *within* it. The embedded-IPv4 tunnel/transition forms are the one
+ * exception: they live outside `2000::/3` yet can legitimately carry a public
+ * IPv4 destination, so they delegate to `isBlockedIPv4` before the
+ * default-deny applies.
+ */
 export declare function isBlockedIPv6(address: string): boolean;
 /** True for any IP literal (v4 or v6) in a blocked range. Unrecognized formats fail closed. */
 export declare function isBlockedIp(address: string): boolean;
