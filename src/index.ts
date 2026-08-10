@@ -114,38 +114,79 @@ export function ipv6ToBytes(address: string): number[] | null {
   return head.length === 16 ? head : null;
 }
 
-/** True for an IPv6 literal in a loopback, unique-local, link-local, multicast, or mapped-private range. */
+/**
+ * True for an IPv6 literal that is not demonstrably global unicast.
+ *
+ * Global unicast — the only IPv6 space that is generally globally reachable —
+ * is `2000::/3`. Rather than enumerate every non-routable range by hand (the
+ * shape that let ranges like `100::/64` discard-only, `3fff::/20`
+ * documentation, `5f00::/16` SRv6, and the unallocated majority of the address
+ * space through unblocked), this default-denies everything outside
+ * `2000::/3` and then carves out the specific non-globally-reachable ranges
+ * *within* it. The embedded-IPv4 tunnel/transition forms are the one
+ * exception: they live outside `2000::/3` yet can legitimately carry a public
+ * IPv4 destination, so they delegate to `isBlockedIPv4` before the
+ * default-deny applies.
+ */
 export function isBlockedIPv6(address: string): boolean {
   const bytes = ipv6ToBytes(address.toLowerCase());
   if (!bytes || bytes.length !== 16) return true; // unparseable — fail closed
 
   const allZeroThrough = (end: number) => bytes.slice(0, end).every((byte) => byte === 0);
 
-  if (bytes.every((byte) => byte === 0)) return true; // :: unspecified
-  if (allZeroThrough(15) && bytes[15] === 1) return true; // ::1 loopback
-  if ((bytes[0] & 0xfe) === 0xfc) return true; // fc00::/7 unique-local
-  if (bytes[0] === 0xfe && (bytes[1] & 0xc0) === 0x80) return true; // fe80::/10 link-local
-  if (bytes[0] === 0xfe && (bytes[1] & 0xc0) === 0xc0) return true; // fec0::/10 site-local (deprecated by RFC 3879, still routable on legacy networks)
-  if (bytes[0] === 0xff) return true; // ff00::/8 multicast
-  if (bytes[0] === 0x20 && bytes[1] === 0x01 && bytes[2] === 0x0d && bytes[3] === 0xb8) return true; // 2001:db8::/32 documentation
-
   // IPv4-mapped (::ffff:0:0/96) — dotted or hex form both land here after parsing.
   if (allZeroThrough(10) && bytes[10] === 0xff && bytes[11] === 0xff) {
     return isBlockedIPv4(bytes.slice(12).join('.'));
   }
   // IPv4-compatible (::/96, deprecated) — embedded IPv4 in the low 32 bits.
+  // Also covers :: (unspecified) and ::1 (loopback), whose embedded 0.0.0.0
+  // and 0.0.0.1 are already blocked by isBlockedIPv4's a === 0 rule.
   if (allZeroThrough(12)) {
     return isBlockedIPv4(bytes.slice(12).join('.'));
   }
 
-  // IPv4-translated / NAT64: these prefixes encode an IPv4 destination in the
-  // low 32 bits. Treat an embedded private or special IPv4 address exactly as
-  // its literal form, rather than allowing it through as a public-looking IPv6.
+  // Well-known NAT64 (64:ff9b::/96) is fixed at /96, so the embedded IPv4
+  // destination is always the low 32 bits.
   const hasWellKnownNat64Prefix =
     bytes[0] === 0x00 && bytes[1] === 0x64 && bytes[2] === 0xff && bytes[3] === 0x9b && bytes.slice(4, 12).every((byte) => byte === 0);
-  const hasLocalUseNat64Prefix =
-    bytes[0] === 0x00 && bytes[1] === 0x64 && bytes[2] === 0xff && bytes[3] === 0x9b && bytes[4] === 0x00 && bytes[5] === 0x01;
-  if ((hasWellKnownNat64Prefix || hasLocalUseNat64Prefix) && isBlockedIPv4(bytes.slice(12).join('.'))) {
+  if (hasWellKnownNat64Prefix) {
+    return isBlockedIPv4(bytes.slice(12).join('.'));
+  }
+
+  // Local-use NAT64 (64:ff9b:1::/48) does not fix an embedded-IPv4 position:
+  // RFC 6052 lets the translation prefix be /32, /40, /48, /56, /64, or /96,
+  // and RFC 8215 says applications must not assume where — or whether — an
+  // IPv4 address is embedded within this block. IANA marks the whole /48 not
+  // globally reachable, so there is no correct way to read an address out of
+  // it here; block it outright rather than guess a position and risk both a
+  // false allow and a false block.
+  if (bytes[0] === 0x00 && bytes[1] === 0x64 && bytes[2] === 0xff && bytes[3] === 0x9b && bytes[4] === 0x00 && bytes[5] === 0x01) {
+    return true;
+  }
+
+  // Default-deny anything outside 2000::/3: loopback, unique-local,
+  // link-local, site-local, multicast, discard-only, documentation blocks
+  // elsewhere in the address space, and the unallocated majority of it.
+  if ((bytes[0] & 0xe0) !== 0x20) return true;
+
+  // Inside 2000::/3, carve out the specific non-globally-reachable ranges.
+  if (bytes[0] === 0x20 && bytes[1] === 0x01 && bytes[2] === 0x0d && bytes[3] === 0xb8) return true; // 2001:db8::/32 documentation
+  if (bytes[0] === 0x3f && bytes[1] === 0xff && (bytes[2] & 0xf0) === 0x00) return true; // 3fff::/20 documentation (RFC 9637)
+
+  // 2001::/23 is IANA's "IETF Protocol Assignments" block: not globally
+  // reachable except where a more-specific allocation says otherwise.
+  // Default-block the whole /23 and carve out only the one genuinely-handled
+  // exception, Teredo (2001::/32), which still classifies by its embedded
+  // IPv4 address — everything else here, including 2001:2::/48
+  // benchmarking (RFC 5180), stays blocked.
+  if (bytes[0] === 0x20 && bytes[1] === 0x01 && (bytes[2] & 0xfe) === 0x00) {
+    if (bytes[2] === 0x00 && bytes[3] === 0x00) {
+      // Teredo obfuscates the client IPv4 address by bitwise-inverting the
+      // final four bytes. It can therefore tunnel a private destination
+      // through a form that does not resemble an IPv4-mapped address.
+      const clientAddress = bytes.slice(12).map((byte) => byte ^ 0xff).join('.');
+      return isBlockedIPv4(clientAddress);
+    }
     return true;
   }
 
@@ -154,13 +195,6 @@ export function isBlockedIPv6(address: string): boolean {
     return true;
   }
 
-  // Teredo obfuscates the client IPv4 address by bitwise-inverting the final
-  // four bytes. It can therefore tunnel a private destination through a form
-  // that does not resemble an IPv4-mapped address.
-  if (bytes[0] === 0x20 && bytes[1] === 0x01 && bytes[2] === 0x00 && bytes[3] === 0x00) {
-    const clientAddress = bytes.slice(12).map((byte) => byte ^ 0xff).join('.');
-    if (isBlockedIPv4(clientAddress)) return true;
-  }
   return false;
 }
 

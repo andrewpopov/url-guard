@@ -11,7 +11,9 @@ Blocks:
 - IP-literal hosts, and hostnames that **DNS-resolve**, to private / loopback /
   link-local / CGNAT / metadata / multicast / reserved / TEST-NET ranges — IPv4
   **and** IPv6, including hex IPv4-mapped forms (`::ffff:7f00:1`) that naive
-  string-matching guards miss.
+  string-matching guards miss. IPv6 is default-deny: anything outside
+  `2000::/3` global unicast is blocked, not just an enumerated list of known-bad
+  ranges, so newly-reserved or unallocated space is blocked without a code change.
 
 Zero runtime dependencies — Node `dns` + `net` (Node ≥ 20).
 
