@@ -1,6 +1,6 @@
 {
   "name": "@andrewpopov/url-guard",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "SSRF guard for server-side fetches of user-supplied URLs: blocks non-http(s)/credentialed/disallowed-port URLs, localhost + internal-suffix hosts, and IP literals or DNS resolutions in private/reserved ranges (IPv4 + rigorous IPv6).",
   "author": "Andrew Popov",
   "license": "MIT",
@@ -41,7 +41,7 @@
     "test:watch": "vitest",
     "verify:pack": "node scripts/verify-pack.mjs",
     "verify:dist-fresh": "node scripts/verify-dist-fresh.mjs",
-    "verify": "npm run typecheck && npm test && npm run build && npm run verify:pack",
+    "verify": "npm run typecheck && npm test && npm run build && npm run verify:dist-fresh && npm run verify:pack",
     "release:note": "release-kit note",
     "release:notes": "release-kit notes",
     "release:bump": "release-kit bump",
