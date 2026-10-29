@@ -81,6 +81,7 @@ loopback, or internal-network access.
 
 ```bash
 npm ci
+npm run hooks
 npm run verify
 npm audit --omit=dev --audit-level=high
 ```
