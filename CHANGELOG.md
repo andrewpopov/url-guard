@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.7
+
+- Installing from git no longer runs a full dependency install: the `prepare` script is gone (run `npm run hooks` once after cloning) and `build` is now `compile`
+  Git-pinned consumers no longer trigger nested installs in the clone. Run `npm run hooks` once after cloning to enable the pre-push gate; `npm run compile` replaces `npm run build`.
+- Update shared release notes tooling
+  Refresh the shared release notes package pins and lockfiles. Full release verification and production rollout remain with the next release candidate.
+
 ## 0.1.6
 
 - Release tooling upgraded to release-kit v0.3.1, so a feature release is graded as a minor rather than a patch
